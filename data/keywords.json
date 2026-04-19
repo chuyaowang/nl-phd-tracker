@@ -42,5 +42,11 @@
     "biomechanics", "finite element", "flow cytometry", "FACS",
     "bioreactor", "scaffold", "prosthetic", "wearable", "sensor",
     "electromyography", "force measurement"
+  ],
+  "organism / model system": [
+    "human", "mouse", "murine", "rat", "zebrafish", "drosophila",
+    "C. elegans", "yeast", "Arabidopsis", "plant", "bacteria", "bacterial",
+    "virus", "viral", "fungi", "fungal", "pathogen", "microbiome",
+    "parasite", "pig", "porcine", "bovine", "primate", "algae"
   ]
 }
