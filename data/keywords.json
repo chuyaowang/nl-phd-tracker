@@ -41,7 +41,8 @@
   "engineering & biophysics": [
     "biomechanics", "finite element", "flow cytometry", "FACS",
     "bioreactor", "scaffold", "prosthetic", "wearable", "sensor",
-    "electromyography", "force measurement"
+    "electromyography", "force measurement", "biomaterial", "biophysics",
+    "biochemistry", "chemistry"
   ],
   "organism / model system": [
     "human", "mouse", "murine", "rat", "zebrafish", "drosophila",

@@ -14,9 +14,9 @@ STATUS_COLOURS = {
     "":            "⚪",
 }
 
-TYPE_OPTIONS = ["computational", "clinical", "biological", "bioinformatics"]
-FIT_OPTIONS  = ["high", "medium", "low"]
-FIT_COLOURS  = {"high": "🟢", "medium": "🟡", "low": "🔴", "": "⚪"}
+TYPE_OPTIONS = ["Computational", "Clinical", "Biological", "Bioinformatics", "Engineering"]
+FIT_OPTIONS  = ["High", "Medium", "Low"]
+FIT_COLOURS  = {"High": "🟢", "Medium": "🟡", "Low": "🔴", "": "⚪"}
 
 st.set_page_config(page_title="PhD Job Tracker", layout="wide")
 
