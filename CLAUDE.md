@@ -3,23 +3,61 @@
 ## Project purpose
 Fetches the user's saved (favourited) PhD job listings from AcademicTransfer into
 a CSV, and provides a Streamlit app for browsing and tracking application progress.
+Future goal: train classifiers to auto-predict `type` and `fit` for new jobs based
+on keywords and titles, removing the need for manual labelling.
 
 ## Environment
 Conda environment name: **`jobscraper`** (Python 3.11).
 Direct dependencies: `requests`, `beautifulsoup4`, `lxml`, `streamlit`.
 Full pinned versions in `requirements.txt`.
 
-## Files
-| File | Role |
-|---|---|
-| `fetch_saved_jobs.py` | Pulls data from the AcademicTransfer API → `jobs.csv` |
-| `app.py` | Streamlit app for browsing and editing tracking fields |
-| `.env` | Holds `AT_TOKEN=Bearer <token>` (expires periodically) |
-| `jobs.csv` | The output — both API data and manually edited fields |
+---
+
+## Directory layout
+```
+academic/
+├── src/                        # all Python source modules
+│   ├── __init__.py
+│   ├── fetch_saved_jobs.py     # data fetching entry point
+│   ├── extract_keywords.py     # keyword matching module
+│   └── app.py                  # Streamlit app
+├── data/
+│   ├── keywords.json           # domain keyword definitions (tracked in git)
+│   └── jobs.csv                # output data (gitignored — personal)
+├── models/                     # future: trained type/fit classifiers
+│   └── .gitkeep
+├── .env                        # API token (gitignored — secret)
+├── .gitignore
+├── requirements.txt
+├── instructions.md
+└── CLAUDE.md
+```
+
+All paths in `src/` scripts resolve relative to `Path(__file__).parent.parent`
+(the project root), so scripts are always run from the project root:
+```bash
+python src/fetch_saved_jobs.py
+streamlit run src/app.py
+python src/extract_keywords.py
+```
 
 ---
 
-## fetch_saved_jobs.py
+## Modularity rules
+- **One responsibility per file.** Do not merge modules to save lines.
+- `extract_keywords.py` — pure keyword logic; no CSV I/O, no API calls.
+- `fetch_saved_jobs.py` — API fetching, merge logic, CSV writing. Imports from
+  `extract_keywords`. No Streamlit.
+- `app.py` — Streamlit UI only. Reads/writes CSV via `save_edit()`. No API calls.
+- Future ML code (training, prediction) goes in its own `src/predict.py` module
+  and is imported by both `fetch_saved_jobs.py` (auto-label new jobs) and `app.py`
+  (show predictions alongside manual labels) — never inlined into either.
+- `data/keywords.json` is the single source of truth for domain terms. Both
+  `extract_keywords.py` and future ML feature engineering should read from it.
+
+---
+
+## src/fetch_saved_jobs.py
 
 ### Data source
 The AcademicTransfer REST API — no HTML scraping of individual pages.
@@ -67,10 +105,11 @@ Contact name/email are parsed from the `mailto:` link inside `additional_info`.
 
 ### Merge logic (safe re-runs)
 When `jobs.csv` already exists, the script merges on `job_id`:
-- **Existing jobs**: API fields are refreshed; `type`, `fit`, `application_status`,
-  and `notes` are preserved from the existing CSV.
+- **Existing jobs**: API fields are refreshed; `type`, `fit`, `application_status`
+  are preserved. `notes` is preserved only if non-empty (blank notes are
+  overwritten with freshly extracted keywords).
 - **New jobs**: written with defaults (`application_status = "not started"`,
-  others blank).
+  `notes` pre-populated with extracted keywords).
 - **Unsaved jobs**: removed (they no longer appear in the API response).
 
 ### CSV columns
@@ -85,7 +124,19 @@ type, fit, application_status, notes
 
 ---
 
-## app.py
+## src/extract_keywords.py
+
+Loads `data/keywords.json` (category → list of terms) and searches job text for
+matches using whole-word, case-insensitive regex. Returns matched terms as a
+comma-separated string. Stateless — no side effects.
+
+`data/keywords.json` categories: genomics & sequencing, proteomics & metabolomics,
+cell biology, computational & ML, imaging & microscopy, neuroscience,
+cancer & immunology, clinical & pathology, engineering & biophysics.
+
+---
+
+## src/app.py
 
 ### State management
 Streamlit reruns the entire script on every interaction. To avoid data loss:
@@ -112,7 +163,7 @@ FIT_OPTIONS    = ["high", "medium", "low"]   # user's research-fit evaluation
   per-status summary counts; reload button.
 - **Overview table**: `st.dataframe` with `on_select="rerun"`. Columns: status
   emoji, title, institution, city, deadline, type, fit emoji, application_status.
-  Fit is shown as emoji only (🟢/🟡/🔴) — text is redundant.
+  Fit is shown as emoji only (🟢/🟡/🔴) — the text label is redundant in the table.
 - **Detail panel** (appears on row selection):
   - Metrics: institution, location, deadline, salary.
   - Edit row: Status · Type · Fit dropdowns + Notes text area + Save button.
@@ -123,5 +174,57 @@ FIT_OPTIONS    = ["high", "medium", "low"]   # user's research-fit evaluation
 
 ### Save behaviour
 `save_edit()` updates `st.session_state.df` in place and writes the full DataFrame
-back to `jobs.csv` (deadline column re-formatted to `YYYY-MM-DD`). Only the four
+back to `data/jobs.csv` (deadline re-formatted to `YYYY-MM-DD`). Only the four
 manual fields are written by the app; all API-sourced fields are read-only.
+
+---
+
+## ML roadmap (future: src/predict.py)
+
+Goal: auto-predict `type` and `fit` for newly fetched jobs so manual labelling
+is not needed.
+
+**Training data**: `data/jobs.csv` rows where `type` and `fit` are non-empty.
+**Features**: keyword presence vector from `extract_keywords.py` + bag-of-words
+or TF-IDF on `title` + `job_description`.
+**Models**: start simple (logistic regression / random forest via scikit-learn);
+save to `models/type_classifier.pkl` and `models/fit_classifier.pkl`.
+
+Integration points:
+- `fetch_saved_jobs.py`: call `predict.predict_type_fit(row)` for new jobs
+  (those not in existing CSV) if a trained model exists.
+- `app.py`: optionally show model prediction alongside manual label to help the
+  user decide.
+
+When implementing, add `scikit-learn` and `pandas` to `requirements.txt`.
+Model files go in `models/` and are gitignored — commit only the training script.
+
+---
+
+## Git practices
+
+### What is tracked
+- `src/` — all source code
+- `data/keywords.json` — keyword definitions (update and commit when you add terms)
+- `requirements.txt`, `CLAUDE.md`, `instructions.md`, `.gitignore`
+- `models/.gitkeep` — keeps the directory in git without tracking model binaries
+
+### What is never committed
+- `.env` — contains your personal API token
+- `data/jobs.csv` — personal application data with private notes
+- `models/*.pkl / *.joblib / *.pt` — binary model files (share training scripts instead)
+
+### Commit conventions
+- **Scope commits**: one logical change per commit. Don't bundle a keyword update
+  with a UI change.
+- **Message format**: imperative mood, present tense — "Add imaging keywords",
+  "Fix deadline date formatting", "Train type classifier v1".
+- **Commit `keywords.json` separately** whenever you add or remove domain terms,
+  so the change is easy to review and revert.
+
+### Branch strategy
+- `main` — stable, working code only.
+- Feature branches for anything experimental: `git checkout -b ml/type-classifier`
+- Merge back to main only when the feature is complete and tested.
+- ML experiments in particular should always be on a branch — a broken classifier
+  must not block the fetch/app workflow on main.
