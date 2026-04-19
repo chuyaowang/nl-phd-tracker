@@ -1,0 +1,46 @@
+{
+  "genomics & sequencing": [
+    "RNA", "DNA", "sequencing", "genomics", "transcriptomics", "gene expression",
+    "single-cell", "scRNA-seq", "GWAS", "epigenomics", "epigenetics",
+    "methylation", "chromatin", "histone", "CRISPR", "multi-omics"
+  ],
+  "proteomics & metabolomics": [
+    "protein", "peptide", "proteomics", "metabolomics", "mass spectrometry",
+    "phosphorylation", "glycosylation"
+  ],
+  "cell biology": [
+    "stem cell", "iPSC", "organoid", "differentiation", "cell culture",
+    "cell signalling", "apoptosis", "proliferation", "tissue engineering",
+    "extracellular matrix", "microfluidics", "organ-on-chip"
+  ],
+  "computational & ML": [
+    "machine learning", "deep learning", "neural network", "algorithm",
+    "statistics", "Bayesian", "regression", "clustering", "classification",
+    "simulation", "modelling", "Python", "R programming", "pipeline",
+    "signal processing", "image analysis", "natural language processing",
+    "reinforcement learning", "graph network", "transformer"
+  ],
+  "imaging & microscopy": [
+    "imaging", "microscopy", "MRI", "fMRI", "fluorescence", "confocal",
+    "electron microscopy", "super-resolution", "tomography", "PET", "CT scan"
+  ],
+  "neuroscience": [
+    "neuron", "brain", "synapse", "cognition", "behavior", "neuromuscular",
+    "EEG", "MEG", "patch clamp", "electrophysiology", "optogenetics",
+    "cortex", "hippocampus", "neurotransmitter", "axon", "myelin"
+  ],
+  "cancer & immunology": [
+    "cancer", "tumor", "oncology", "immunology", "immune", "T cell",
+    "antibody", "checkpoint", "CAR-T", "metastasis", "angiogenesis"
+  ],
+  "clinical & pathology": [
+    "clinical", "pathology", "patient", "cohort", "biomarker", "mutation",
+    "disorder", "clinical trial", "diagnosis", "prognosis", "therapy",
+    "pharmacology", "drug", "treatment"
+  ],
+  "engineering & biophysics": [
+    "biomechanics", "finite element", "flow cytometry", "FACS",
+    "bioreactor", "scaffold", "prosthetic", "wearable", "sensor",
+    "electromyography", "force measurement"
+  ]
+}

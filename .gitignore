@@ -1,0 +1,20 @@
+# Auth token — never commit
+.env
+
+# Personal application data — contains your notes and private tracking
+data/jobs.csv
+
+# Trained ML models (binary, often large)
+models/*.pkl
+models/*.joblib
+models/*.pt
+models/*.h5
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# OS
+.DS_Store
