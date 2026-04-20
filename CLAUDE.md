@@ -1,12 +1,14 @@
 # CLAUDE.md — PhD Job Tracker
 
 ## Project purpose
+
 Fetches the user's saved (favourited) PhD job listings from AcademicTransfer into
 a CSV, and provides a Streamlit app for browsing and tracking application progress.
 Future goal: train classifiers to auto-predict `type` and `fit` for new jobs based
 on keywords and titles, removing the need for manual labelling.
 
 ## Environment
+
 Conda environment name: **`jobscraper`** (Python 3.11).
 Direct dependencies: `requests`, `beautifulsoup4`, `lxml`, `streamlit`.
 Full pinned versions in `requirements.txt`.
@@ -14,6 +16,7 @@ Full pinned versions in `requirements.txt`.
 ---
 
 ## Directory layout
+
 ```
 academic/
 ├── src/                        # all Python source modules
@@ -29,12 +32,14 @@ academic/
 ├── .env                        # API token (gitignored — secret)
 ├── .gitignore
 ├── requirements.txt
-├── instructions.md
-└── CLAUDE.md
+├── instructions.md             # Instructions on how to use the software
+└── CLAUDE.md                   # Instructions for Claude coding agent
+└── README.md                   # Project README
 ```
 
 All paths in `src/` scripts resolve relative to `Path(__file__).parent.parent`
 (the project root), so scripts are always run from the project root:
+
 ```bash
 python src/fetch_saved_jobs.py
 streamlit run src/app.py
@@ -44,6 +49,7 @@ python src/extract_keywords.py
 ---
 
 ## Modularity rules
+
 - **One responsibility per file.** Do not merge modules to save lines.
 - `extract_keywords.py` — pure keyword logic; no CSV I/O, no API calls.
 - `fetch_saved_jobs.py` — API fetching, merge logic, CSV writing. Imports from
@@ -60,6 +66,7 @@ python src/extract_keywords.py
 ## src/fetch_saved_jobs.py
 
 ### Data source
+
 The AcademicTransfer REST API — no HTML scraping of individual pages.
 
 ```
@@ -72,6 +79,7 @@ Pagination is handled via the `next` field in the response.
 Token is read from `.env` (key: `AT_TOKEN`); falls back to `--token` CLI arg.
 
 ### API response structure (one item)
+
 ```
 {
   "external_id": int,           # job ID used in the URL
@@ -104,22 +112,24 @@ HTML fields are stripped to plain text via BeautifulSoup before writing to CSV.
 Contact name/email are parsed from the `mailto:` link inside `additional_info`.
 
 ### Merge logic (safe re-runs)
+
 When `jobs.csv` already exists, the script merges on `job_id`:
-- **Existing jobs**: API fields are refreshed; `type`, `fit`, `application_status`
-  are preserved. `notes` is preserved only if non-empty (blank notes are
-  overwritten with freshly extracted keywords).
+
+- **Existing jobs**: API fields are refreshed; `type`, `fit`, `application_status`,
+  and `notes` are preserved. `keywords` is always refreshed from extracted text.
 - **New jobs**: written with defaults (`application_status = "not started"`,
-  `notes` pre-populated with extracted keywords).
+  `keywords` pre-populated with extracted keywords, `notes` empty).
 - **Unsaved jobs**: removed (they no longer appear in the API response).
 
 ### CSV columns
+
 ```
 url, job_id, title, institution, city, country,
 deadline, date_posted, salary_min_eur, salary_max_eur,
 weekly_hours, contract_duration,
 job_description, requirements, conditions_of_employment,
 employer, department, contact_name, contact_email,
-type, fit, application_status, notes
+type, fit, application_status, keywords, notes
 ```
 
 ---
@@ -139,6 +149,7 @@ cancer & immunology, clinical & pathology, engineering & biophysics.
 ## src/app.py
 
 ### State management
+
 Streamlit reruns the entire script on every interaction. To avoid data loss:
 
 - **`st.session_state.df`** — loaded from CSV exactly once on first run. All edits
@@ -152,13 +163,15 @@ Streamlit reruns the entire script on every interaction. To avoid data loss:
   (intended for after `fetch_saved_jobs.py` is re-run).
 
 ### Tracking fields and options
+
 ```python
 STATUS_OPTIONS = ["not started", "applied", "interviewing", "rejected", "offer"]
-TYPE_OPTIONS   = ["computational", "clinical", "biological", "bioinformatics"]
-FIT_OPTIONS    = ["high", "medium", "low"]   # user's research-fit evaluation
+TYPE_OPTIONS   = ["Computational", "Clinical", "Biological", "Bioinformatics", "Engineering"]
+FIT_OPTIONS    = ["High", "Medium", "Low"]   # user's research-fit evaluation
 ```
 
 ### Layout
+
 - **Sidebar**: status / type / fit multiselect filters; expired-deadline toggle;
   per-status summary counts; reload button.
 - **Overview table**: `st.dataframe` with `on_select="rerun"`. Columns: status
@@ -166,16 +179,19 @@ FIT_OPTIONS    = ["high", "medium", "low"]   # user's research-fit evaluation
   Fit is shown as emoji only (🟢/🟡/🔴) — the text label is redundant in the table.
 - **Detail panel** (appears on row selection):
   - Metrics: institution, location, deadline, salary.
-  - Edit row: Status · Type · Fit dropdowns + Notes text area + Save button.
+  - Edit row: Status · Type · Fit dropdowns + Notes text area + Keywords (read-only text).
+  - Navigation: ← Prev · Save · Next → buttons; Prev/Next auto-save before switching.
   - Content tabs: Job Description · Requirements · Conditions of Employment ·
     Employer · Department · Contact.
   - Long text rendered with `st.markdown(text.replace("\n", "\n\n"))` — single
     `\n` is ignored by Markdown; double `\n\n` creates paragraph breaks.
 
 ### Save behaviour
+
 `save_edit()` updates `st.session_state.df` in place and writes the full DataFrame
 back to `data/jobs.csv` (deadline re-formatted to `YYYY-MM-DD`). Only the four
-manual fields are written by the app; all API-sourced fields are read-only.
+manual fields (`type`, `fit`, `application_status`, `notes`) are written by the app;
+all API-sourced fields (including `keywords`) are read-only in the app.
 
 ---
 
@@ -191,6 +207,7 @@ or TF-IDF on `title` + `job_description`.
 save to `models/type_classifier.pkl` and `models/fit_classifier.pkl`.
 
 Integration points:
+
 - `fetch_saved_jobs.py`: call `predict.predict_type_fit(row)` for new jobs
   (those not in existing CSV) if a trained model exists.
 - `app.py`: optionally show model prediction alongside manual label to help the
@@ -204,17 +221,20 @@ Model files go in `models/` and are gitignored — commit only the training scri
 ## Git practices
 
 ### What is tracked
+
 - `src/` — all source code
 - `data/keywords.json` — keyword definitions (update and commit when you add terms)
 - `requirements.txt`, `CLAUDE.md`, `instructions.md`, `.gitignore`
 - `models/.gitkeep` — keeps the directory in git without tracking model binaries
 
 ### What is never committed
+
 - `.env` — contains your personal API token
 - `data/jobs.csv` — personal application data with private notes
 - `models/*.pkl / *.joblib / *.pt` — binary model files (share training scripts instead)
 
 ### Commit conventions
+
 - **Scope commits**: one logical change per commit. Don't bundle a keyword update
   with a UI change.
 - **Message format**: imperative mood, present tense — "Add imaging keywords",
@@ -223,8 +243,14 @@ Model files go in `models/` and are gitignored — commit only the training scri
   so the change is easy to review and revert.
 
 ### Branch strategy
+
 - `main` — stable, working code only.
 - Feature branches for anything experimental: `git checkout -b ml/type-classifier`
 - Merge back to main only when the feature is complete and tested.
 - ML experiments in particular should always be on a branch — a broken classifier
   must not block the fetch/app workflow on main.
+
+## Claude interaction guidelines
+
+- When the user asks for a code change or bug fix, always formulate a plan and explain the reasoning first. Wait for the user's explicit confirmation to start coding.
+- Keep CLAUDE.md. README.md, and instructions.md updated when new features are commited to them main branch.

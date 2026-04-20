@@ -22,7 +22,6 @@ st.set_page_config(page_title="PhD Job Tracker", layout="wide")
 
 
 # ── Load data once ─────────────────────────────────────────────────────────────
-# Never re-read from CSV mid-session — edits live in session_state.df
 if "df" not in st.session_state:
     df = pd.read_csv(CSV_PATH, dtype=str).fillna("")
     df["deadline"] = pd.to_datetime(df["deadline"], errors="coerce")
@@ -30,6 +29,8 @@ if "df" not in st.session_state:
 
 if "selected_idx" not in st.session_state:
     st.session_state.selected_idx = None
+if "nav_triggered" not in st.session_state:
+    st.session_state.nav_triggered = False
 
 
 def save_edit(idx: int, new_status: str, new_notes: str, new_type: str, new_fit: str) -> None:
@@ -42,11 +43,25 @@ def save_edit(idx: int, new_status: str, new_notes: str, new_type: str, new_fit:
     out.to_csv(CSV_PATH, index=False)
 
 
+def save_current(idx: int) -> None:
+    save_edit(
+        idx,
+        new_status=st.session_state.get(f"sel_status_{idx}",
+                    st.session_state.df.at[idx, "application_status"]),
+        new_notes=st.session_state.get(f"txt_notes_{idx}",
+                   st.session_state.df.at[idx, "notes"]),
+        new_type=st.session_state.get(f"sel_type_{idx}",
+                  st.session_state.df.at[idx, "type"]),
+        new_fit=st.session_state.get(f"sel_fit_{idx}",
+                 st.session_state.df.at[idx, "fit"]),
+    )
+
+
 # ── Sidebar ─────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("PhD Job Tracker")
 
-    if st.button("↻ Reload from CSV", use_container_width=True):
+    if st.button("↻ Reload from CSV", width="stretch"):
         df = pd.read_csv(CSV_PATH, dtype=str).fillna("")
         df["deadline"] = pd.to_datetime(df["deadline"], errors="coerce")
         st.session_state.df = df
@@ -115,7 +130,7 @@ display = display[["", "title", "institution", "city", "deadline", "type", "🎯
 
 event = st.dataframe(
     display,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     on_select="rerun",
     selection_mode="single-row",
@@ -133,9 +148,11 @@ event = st.dataframe(
 )
 
 # Map selected display-row → original DataFrame index
+# Skip if a nav button triggered this rerun (table selection would overwrite the new idx)
 sel_rows = event.selection.rows
-if sel_rows:
+if sel_rows and not st.session_state.nav_triggered:
     st.session_state.selected_idx = view.index[sel_rows[0]]
+st.session_state.nav_triggered = False
 
 # ── Detail panel ─────────────────────────────────────────────────────────────────
 idx = st.session_state.selected_idx
@@ -159,8 +176,9 @@ if idx is not None and idx in st.session_state.df.index:
         f"{job['weekly_hours']}  ·  {job['contract_duration']}"
     )
 
-    # Edit status, type, notes
-    # Widget keys include idx so Streamlit resets them when a different row is selected
+    st.caption(f"**Keywords:** {job['keywords'] or '—'}")
+    
+    # Edit fields
     st.markdown("#### Track application")
     ec1, ec2, ec3, ec4 = st.columns([1, 1, 1, 2])
     with ec1:
@@ -200,9 +218,28 @@ if idx is not None and idx in st.session_state.df.index:
             key=f"txt_notes_{idx}",
         )
 
-    if st.button("Save", type="primary", key=f"btn_save_{idx}"):
-        save_edit(idx, new_status, new_notes, new_type, new_fit)
-        st.success("Saved to jobs.csv")
+    # Navigation and save buttons
+    view_indices = list(view.index)
+    in_view = idx in view_indices
+    pos = view_indices.index(idx) if in_view else -1
+
+    bcol1, bcol2, bcol3, _ = st.columns([1, 1, 1, 5])
+    with bcol1:
+        if st.button("← Prev", disabled=not in_view or pos == 0, width="stretch", key=f"btn_prev_{idx}"):
+            save_current(idx)
+            st.session_state.selected_idx = view_indices[pos - 1]
+            st.session_state.nav_triggered = True
+            st.rerun()
+    with bcol2:
+        if st.button("Save", type="primary", width="stretch", key=f"btn_save_{idx}"):
+            save_edit(idx, new_status, new_notes, new_type, new_fit)
+            st.success("Saved to jobs.csv")
+    with bcol3:
+        if st.button("Next →", disabled=not in_view or pos == len(view_indices) - 1, width="stretch", key=f"btn_next_{idx}"):
+            save_current(idx)
+            st.session_state.selected_idx = view_indices[pos + 1]
+            st.session_state.nav_triggered = True
+            st.rerun()
 
     st.divider()
 

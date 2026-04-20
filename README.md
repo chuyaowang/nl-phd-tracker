@@ -12,6 +12,7 @@ Fetch, browse, and track PhD job applications saved on [AcademicTransfer](https:
 ## Setup
 
 **1. Clone and create the environment**
+
 ```bash
 git clone https://github.com/chuyaowang/jobscraper.git
 cd jobscraper
@@ -23,11 +24,13 @@ pip install -r requirements.txt
 **2. Add your API token**
 
 Create a `.env` file in the project root:
+
 ```
 AT_TOKEN=Bearer <your_token>
 ```
 
 To get your token:
+
 1. Log in to AcademicTransfer and go to your saved jobs page
 2. Open DevTools (F12) → Network → Fetch/XHR → refresh the page
 3. Find the request to `api.academictransfer.com/careers/vacancies/…is_favorite=true…`
@@ -38,19 +41,23 @@ Tokens expire periodically — repeat this step when you get a 401 error.
 ## Usage
 
 **Fetch saved jobs**
+
 ```bash
 conda activate jobscraper
 python src/fetch_saved_jobs.py
 ```
 
 **Run the tracking app**
+
 ```bash
 conda activate jobscraper
 streamlit run src/app.py
 ```
-Then open http://localhost:8501.
+
+Then open <http://localhost:8501>.
 
 **Refresh keyword notes** (after editing `data/keywords.json`)
+
 ```bash
 python src/update_notes.py
 ```

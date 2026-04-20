@@ -1,4 +1,4 @@
-"""Overwrite notes for all jobs with freshly extracted keywords."""
+"""Overwrite keywords for all jobs with freshly extracted keywords."""
 
 import csv
 from pathlib import Path
@@ -11,11 +11,11 @@ rows = list(csv.DictReader(CSV_PATH.open(encoding="utf-8")))
 
 for row in rows:
     text = row["job_description"] + " " + row["requirements"]
-    row["notes"] = extract(text, keywords)
+    row["keywords"] = extract(text, keywords)
 
 with open(CSV_PATH, "w", newline="", encoding="utf-8") as f:
     writer = csv.DictWriter(f, fieldnames=rows[0].keys())
     writer.writeheader()
     writer.writerows(rows)
 
-print(f"Updated notes for all {len(rows)} jobs.")
+print(f"Updated keywords for all {len(rows)} jobs.")

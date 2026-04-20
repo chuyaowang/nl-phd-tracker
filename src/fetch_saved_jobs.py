@@ -34,7 +34,7 @@ OUTPUT_FIELDS = [
     "weekly_hours", "contract_duration",
     "job_description", "requirements", "conditions_of_employment",
     "employer", "department", "contact_name", "contact_email",
-    "type", "fit", "application_status", "notes",
+    "type", "fit", "application_status", "keywords", "notes",
 ]
 
 API_BASE = "https://api.academictransfer.com/careers/vacancies/"
@@ -130,10 +130,11 @@ def parse_item(item: dict) -> dict:
         "type":                     "",
         "fit":                      "",
         "application_status":       "not started",
-        "notes":                    extract(
+        "keywords":                 extract(
             strip_html(t.get("description", "")) + " " + strip_html(t.get("requirements", "")),
             _KEYWORDS
         ),
+        "notes":                    "",
     }
 
 
@@ -165,12 +166,7 @@ def main():
         for job_id, row in new_rows.items():
             if job_id in existing:
                 for field in MANUAL_FIELDS:
-                    old_val = existing[job_id].get(field, "")
-                    # Keep user edits; only override notes if still empty
-                    if field == "notes":
-                        row[field] = old_val if old_val.strip() else row[field]
-                    else:
-                        row[field] = old_val
+                    row[field] = existing[job_id].get(field, "")
                 preserved += 1
             else:
                 added += 1
