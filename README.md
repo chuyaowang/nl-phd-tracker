@@ -4,10 +4,11 @@ Fetch, browse, and track PhD job applications saved on [AcademicTransfer](https:
 
 ## Features
 
+- One-click sync via a Chrome extension — no manual token handling needed
 - Pulls all saved jobs from the AcademicTransfer API into a local CSV
-- Extracts domain keywords (genomics, ML, neuroscience, organism model, etc.) to pre-populate notes
+- Extracts domain keywords (genomics, ML, neuroscience, imaging, etc.) to pre-populate keyword tags
 - Streamlit app for browsing and filtering jobs by status, type, and research fit
-- Safe re-runs: manual edits to status, type, fit, and notes are preserved across refreshes
+- Safe re-runs: manual edits to status, type, fit, and notes are preserved across syncs
 
 ## Setup
 
@@ -21,33 +22,31 @@ conda activate jobscraper
 pip install -r requirements.txt
 ```
 
-**2. Add your API token**
+**2. Install the Chrome extension**
 
-Create a `.env` file in the project root:
+1. Open `chrome://extensions` in Chrome
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** and select the `extension/` folder
+4. The extension icon appears in the toolbar — it shows a green **✓** badge once a token is captured
 
+**3. Start the local sync server**
+
+```bash
+./start_server.sh
 ```
-AT_TOKEN=Bearer <your_token>
-```
 
-To get your token:
-
-1. Log in to AcademicTransfer and go to your saved jobs page
-2. Open DevTools (F12) → Network → Fetch/XHR → refresh the page
-3. Find the request to `api.academictransfer.com/careers/vacancies/…is_favorite=true…`
-4. Copy the `Authorization` header value
-
-Tokens expire periodically — repeat this step when you get a 401 error.
+This starts a local FastAPI server at `http://127.0.0.1:8765` that the extension calls to trigger a sync.
+Keep it running whenever you want to sync.
 
 ## Usage
 
-**Fetch saved jobs**
+### Primary workflow — browser extension
 
-```bash
-conda activate jobscraper
-python src/fetch_saved_jobs.py
-```
+1. Log in to AcademicTransfer in Chrome (the extension auto-captures the token)
+2. Click the extension icon → **Sync now**
+3. In the Streamlit app, click **↻ Reload** in the sidebar to pick up the new data
 
-**Run the tracking app**
+### Run the tracking app
 
 ```bash
 conda activate jobscraper
@@ -56,11 +55,16 @@ streamlit run src/app.py
 
 Then open <http://localhost:8501>.
 
-**Refresh keyword notes** (after editing `data/keywords.json`)
+### Fallback — CLI sync
 
-```bash
-python src/update_notes.py
-```
+If you prefer not to use the extension, you can sync from the command line using a token from `.env`:
+
+1. Log in to AcademicTransfer → DevTools (F12) → Network → Fetch/XHR → refresh the page
+2. Find the request to `api.academictransfer.com/…is_favorite=true…` → copy the `Authorization` header
+3. Create `.env` in the project root: `AT_TOKEN=Bearer <your_token>`
+4. Run: `python src/fetch_saved_jobs.py`
+
+Tokens expire periodically — repeat when you get a 401 error.
 
 ## Project structure
 
@@ -68,12 +72,19 @@ python src/update_notes.py
 ├── src/
 │   ├── fetch_saved_jobs.py   # pulls jobs from the AcademicTransfer API
 │   ├── extract_keywords.py   # domain keyword matching
-│   ├── update_notes.py       # re-populate notes with keywords
+│   ├── local_server.py       # FastAPI server for browser extension sync
 │   └── app.py                # Streamlit tracking app
+├── extension/                # Chrome extension (load unpacked from chrome://extensions)
+│   ├── manifest.json
+│   ├── background.js
+│   ├── content.js
+│   ├── popup.html
+│   └── popup.js
 ├── data/
 │   └── keywords.json         # domain keyword definitions (edit to extend)
 ├── models/                   # future: trained type/fit classifiers
-├── .env                      # your API token (never committed)
+├── start_server.sh           # starts the local sync server
+├── .env                      # your API token for CLI use (never committed)
 └── requirements.txt
 ```
 
@@ -84,9 +95,10 @@ In the app, select any job row to edit:
 | Field | Options |
 |---|---|
 | **Status** | not started · applied · interviewing · rejected · offer |
-| **Type** | computational · clinical · biological · bioinformatics |
-| **Fit** | high · medium · low |
-| **Notes** | free text (pre-populated with extracted keywords) |
+| **Type** | Computational · Clinical · Biological · Bioinformatics · Engineering |
+| **Fit** | High · Medium · Low |
+| **Keywords** | auto-populated from job text (read-only) |
+| **Notes** | free text |
 
 ## License
 
