@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body {
+      font-family: sans-serif;
+      font-size: 13px;
+      width: 220px;
+      padding: 12px;
+      margin: 0;
+    }
+    h3 { margin: 0 0 10px; font-size: 14px; }
+    button {
+      width: 100%;
+      padding: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      background: #4f8ef7;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+    button:disabled { background: #aaa; cursor: default; }
+    #status { margin-top: 10px; color: #555; min-height: 16px; }
+    #last { margin-top: 6px; color: #888; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <h3>PhD Job Tracker</h3>
+  <button id="syncBtn">Sync now</button>
+  <div id="status"></div>
+  <div id="last"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

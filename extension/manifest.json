@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "PhD Job Tracker Sync",
+  "version": "1.0",
+  "description": "Syncs your AcademicTransfer saved jobs to the local tracker.",
+  "permissions": [
+    "webRequest",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://academictransfer.com/*",
+    "https://*.academictransfer.com/*",
+    "http://localhost:8765/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://academictransfer.com/*", "https://*.academictransfer.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "PhD Job Tracker Sync"
+  }
+}
