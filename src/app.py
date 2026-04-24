@@ -29,8 +29,8 @@ if "df" not in st.session_state:
 
 if "selected_idx" not in st.session_state:
     st.session_state.selected_idx = None
-if "nav_triggered" not in st.session_state:
-    st.session_state.nav_triggered = False
+if "last_table_idx" not in st.session_state:
+    st.session_state.last_table_idx = None
 
 
 def save_edit(idx: int, new_status: str, new_notes: str, new_type: str, new_fit: str) -> None:
@@ -66,6 +66,7 @@ with st.sidebar:
         df["deadline"] = pd.to_datetime(df["deadline"], errors="coerce")
         st.session_state.df = df
         st.session_state.selected_idx = None
+        st.session_state.last_table_idx = None
         st.rerun()
 
     st.divider()
@@ -147,12 +148,15 @@ event = st.dataframe(
     },
 )
 
-# Map selected display-row → original DataFrame index
-# Skip if a nav button triggered this rerun (table selection would overwrite the new idx)
+# Map selected display-row → original DataFrame index.
+# Only apply when the table selection actually changes — otherwise a stale
+# selection would overwrite selected_idx after Prev/Next navigation.
 sel_rows = event.selection.rows
-if sel_rows and not st.session_state.nav_triggered:
-    st.session_state.selected_idx = view.index[sel_rows[0]]
-st.session_state.nav_triggered = False
+current_table_idx = view.index[sel_rows[0]] if sel_rows else None
+if current_table_idx != st.session_state.last_table_idx:
+    st.session_state.last_table_idx = current_table_idx
+    if current_table_idx is not None:
+        st.session_state.selected_idx = current_table_idx
 
 # ── Detail panel ─────────────────────────────────────────────────────────────────
 idx = st.session_state.selected_idx
@@ -228,7 +232,6 @@ if idx is not None and idx in st.session_state.df.index:
         if st.button("← Prev", disabled=not in_view or pos == 0, width="stretch", key=f"btn_prev_{idx}"):
             save_current(idx)
             st.session_state.selected_idx = view_indices[pos - 1]
-            st.session_state.nav_triggered = True
             st.rerun()
     with bcol2:
         if st.button("Save", type="primary", width="stretch", key=f"btn_save_{idx}"):
@@ -238,7 +241,6 @@ if idx is not None and idx in st.session_state.df.index:
         if st.button("Next →", disabled=not in_view or pos == len(view_indices) - 1, width="stretch", key=f"btn_next_{idx}"):
             save_current(idx)
             st.session_state.selected_idx = view_indices[pos + 1]
-            st.session_state.nav_triggered = True
             st.rerun()
 
     st.divider()
@@ -250,8 +252,11 @@ if idx is not None and idx in st.session_state.df.index:
     ])
 
     def md(text: str) -> None:
-        # Single \n is ignored in Markdown; double \n creates a paragraph break
-        st.markdown(text.replace("\n", "\n\n") if text else "—")
+        import re
+        # Collapse excess blank lines, then ensure single \n becomes \n\n for Markdown
+        t = re.sub(r"\n{3,}", "\n\n", text) if text else ""
+        t = re.sub(r"(?<!\n)\n(?!\n)", "\n\n", t)
+        st.markdown(t or "—")
 
     with tab1:
         md(job["job_description"])
