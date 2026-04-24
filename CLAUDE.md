@@ -10,7 +10,7 @@ on keywords and titles, removing the need for manual labelling.
 ## Environment
 
 Conda environment name: **`jobscraper`** (Python 3.11).
-Direct dependencies: `requests`, `beautifulsoup4`, `lxml`, `streamlit`.
+Direct dependencies: `requests`, `beautifulsoup4`, `lxml`, `streamlit`, `fastapi`, `uvicorn`.
 Full pinned versions in `requirements.txt`.
 
 ---
@@ -21,9 +21,16 @@ Full pinned versions in `requirements.txt`.
 academic/
 ├── src/                        # all Python source modules
 │   ├── __init__.py
-│   ├── fetch_saved_jobs.py     # data fetching entry point
+│   ├── fetch_saved_jobs.py     # data fetching entry point + fetch_and_merge()
 │   ├── extract_keywords.py     # keyword matching module
+│   ├── local_server.py         # FastAPI server for browser extension sync
 │   └── app.py                  # Streamlit app
+├── extension/                  # Chrome extension (Manifest V3)
+│   ├── manifest.json
+│   ├── background.js           # service worker: captures Bearer token
+│   ├── content.js              # reads token from localStorage on page load
+│   ├── popup.html              # extension popup UI
+│   └── popup.js
 ├── data/
 │   ├── keywords.json           # domain keyword definitions (tracked in git)
 │   └── jobs.csv                # output data (gitignored — personal)
@@ -32,8 +39,9 @@ academic/
 ├── .env                        # API token (gitignored — secret)
 ├── .gitignore
 ├── requirements.txt
+├── start_server.sh             # starts local_server.py in the jobscraper env
 ├── instructions.md             # Instructions on how to use the software
-└── CLAUDE.md                   # Instructions for Claude coding agent
+├── CLAUDE.md                   # Instructions for Claude coding agent
 └── README.md                   # Project README
 ```
 
@@ -43,7 +51,7 @@ All paths in `src/` scripts resolve relative to `Path(__file__).parent.parent`
 ```bash
 python src/fetch_saved_jobs.py
 streamlit run src/app.py
-python src/extract_keywords.py
+./start_server.sh
 ```
 
 ---
@@ -53,7 +61,10 @@ python src/extract_keywords.py
 - **One responsibility per file.** Do not merge modules to save lines.
 - `extract_keywords.py` — pure keyword logic; no CSV I/O, no API calls.
 - `fetch_saved_jobs.py` — API fetching, merge logic, CSV writing. Imports from
-  `extract_keywords`. No Streamlit.
+  `extract_keywords`. No Streamlit. Exposes `fetch_and_merge(token)` for use by
+  both the CLI entry point and `local_server.py`.
+- `local_server.py` — FastAPI server only. Calls `fetch_and_merge`. No Streamlit,
+  no direct CSV I/O.
 - `app.py` — Streamlit UI only. Reads/writes CSV via `save_edit()`. No API calls.
 - Future ML code (training, prediction) goes in its own `src/predict.py` module
   and is imported by both `fetch_saved_jobs.py` (auto-label new jobs) and `app.py`
@@ -108,12 +119,23 @@ Token is read from `.env` (key: `AT_TOKEN`); falls back to `--token` CLI arg.
 }
 ```
 
-HTML fields are stripped to plain text via BeautifulSoup before writing to CSV.
-Contact name/email are parsed from the `mailto:` link inside `additional_info`.
+HTML fields are processed by `strip_html()` before writing to CSV:
+- `<a href>` links are preserved as Markdown `[text](url)` (except `mailto:`)
+- `get_text(separator="\n")` newlines around inline links are cleaned up by regex
+- Contact name/email are parsed separately from the `mailto:` link in `additional_info`
+
+### Flat description splitting
+
+Some job posters put all content into `description` and leave the other HTML fields
+empty. When `requirements` and `contract_terms` are both empty, `_split_description()`
+scans the description HTML for `<strong>` section headers matching known patterns
+(`"Job description"`, `"Job requirements"`, `"Conditions of employment"`) and splits
+the content into the appropriate fields before stripping.
 
 ### Merge logic (safe re-runs)
 
-When `jobs.csv` already exists, the script merges on `job_id`:
+`fetch_and_merge(token, output_path)` is the callable used by both CLI and server.
+When `jobs.csv` already exists, it merges on `job_id`:
 
 - **Existing jobs**: API fields are refreshed; `type`, `fit`, `application_status`,
   and `notes` are preserved. `keywords` is always refreshed from extracted text.
@@ -131,6 +153,42 @@ job_description, requirements, conditions_of_employment,
 employer, department, contact_name, contact_email,
 type, fit, application_status, keywords, notes
 ```
+
+---
+
+## src/local_server.py
+
+FastAPI server that the browser extension calls to trigger a sync.
+
+```
+POST /sync   { "token": "Bearer <jwt>" }  → runs fetch_and_merge, returns stats
+GET  /status                              → last sync result or "No sync run yet"
+```
+
+Start with `./start_server.sh` (listens on `http://127.0.0.1:8765`).
+The server must be running for the extension to work. CORS is open to all origins
+(local-only server, no exposure risk).
+
+---
+
+## extension/
+
+Chrome extension (Manifest V3). Load unpacked from `chrome://extensions`.
+
+**Token capture** — two complementary mechanisms:
+- `content.js` runs on every AcademicTransfer page at `document_idle`, scans
+  `localStorage`/`sessionStorage` for a JWT token, and sends it to the background
+  via `chrome.runtime.sendMessage`. Fires on page load, so the token is available
+  immediately.
+- `background.js` service worker also listens via `chrome.webRequest.onBeforeSendHeaders`
+  on `api.academictransfer.com/*` to catch token refreshes from live API calls.
+
+Both routes store the token in `chrome.storage.session` (cleared on browser close).
+The extension badge shows a green **✓** when a token is stored.
+
+**Sync flow**: click the popup → "Sync now" → popup reads the stored token and POSTs
+to `http://localhost:8765/sync` → server runs `fetch_and_merge` → popup shows result.
+Hit **↻ Reload** in the Streamlit app afterward to pick up the new data.
 
 ---
 
@@ -156,11 +214,15 @@ Streamlit reruns the entire script on every interaction. To avoid data loss:
   update this in-memory copy. Filters and reruns never re-read the file.
 - **`st.session_state.selected_idx`** — original DataFrame index of the selected
   row; persists across filter-triggered reruns that shift row positions.
+- **`st.session_state.last_table_idx`** — the df-index last applied from a table
+  click. `selected_idx` is only updated when this changes, preventing a stale table
+  selection from overriding Prev/Next navigation on subsequent reruns (e.g. editing
+  a field after navigating).
 - **Widget keys include `idx`** (e.g. `sel_status_{idx}`) — forces Streamlit to
   reset edit widgets when the user switches to a different row, preventing stale
   values from a previously selected job.
 - **↻ Reload button** — the only way to re-read `jobs.csv` into session state
-  (intended for after `fetch_saved_jobs.py` is re-run).
+  (intended for after a sync via the extension or CLI).
 
 ### Tracking fields and options
 
@@ -183,8 +245,9 @@ FIT_OPTIONS    = ["High", "Medium", "Low"]   # user's research-fit evaluation
   - Navigation: ← Prev · Save · Next → buttons; Prev/Next auto-save before switching.
   - Content tabs: Job Description · Requirements · Conditions of Employment ·
     Employer · Department · Contact.
-  - Long text rendered with `st.markdown(text.replace("\n", "\n\n"))` — single
-    `\n` is ignored by Markdown; double `\n\n` creates paragraph breaks.
+  - Long text rendered via `md()`: collapses excess blank lines, then converts
+    isolated `\n` to `\n\n` for Markdown paragraph breaks. Markdown links from
+    `strip_html` are rendered as clickable links.
 
 ### Save behaviour
 
@@ -223,8 +286,9 @@ Model files go in `models/` and are gitignored — commit only the training scri
 ### What is tracked
 
 - `src/` — all source code
+- `extension/` — browser extension source
 - `data/keywords.json` — keyword definitions (update and commit when you add terms)
-- `requirements.txt`, `CLAUDE.md`, `instructions.md`, `.gitignore`
+- `requirements.txt`, `CLAUDE.md`, `instructions.md`, `.gitignore`, `start_server.sh`
 - `models/.gitkeep` — keeps the directory in git without tracking model binaries
 
 ### What is never committed
@@ -235,10 +299,6 @@ Model files go in `models/` and are gitignored — commit only the training scri
 
 ### Commit conventions
 
-- **Scope commits**: one logical change per commit. Don't bundle a keyword update
-  with a UI change.
-- **Message format**: imperative mood, present tense — "Add imaging keywords",
-  "Fix deadline date formatting", "Train type classifier v1".
 - **Commit `keywords.json` separately** whenever you add or remove domain terms,
   so the change is easy to review and revert.
 
@@ -249,8 +309,4 @@ Model files go in `models/` and are gitignored — commit only the training scri
 - Merge back to main only when the feature is complete and tested.
 - ML experiments in particular should always be on a branch — a broken classifier
   must not block the fetch/app workflow on main.
-
-## Claude interaction guidelines
-
-- When the user asks for a code change or bug fix, always formulate a plan and explain the reasoning first. Wait for the user's explicit confirmation to start coding.
-- Keep CLAUDE.md. README.md, and instructions.md updated when new features are commited to them main branch.
+- Keep CLAUDE.md, README.md, and instructions.md updated when new features are committed to the main branch.
