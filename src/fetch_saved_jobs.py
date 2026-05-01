@@ -12,6 +12,7 @@ import argparse
 import csv
 import re
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
@@ -113,7 +114,11 @@ def _split_description(html: str) -> dict[str, str]:
 def fmt_date(iso: str) -> str:
     if not iso:
         return ""
-    return iso[:10]  # YYYY-MM-DD
+    dt = datetime.fromisoformat(iso)
+    # T00:00:00 means "expired at midnight" — the deadline was the previous day
+    if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+        dt -= timedelta(days=1)
+    return dt.strftime("%Y-%m-%d")
 
 
 def extract_contact(html: str) -> tuple[str, str]:
