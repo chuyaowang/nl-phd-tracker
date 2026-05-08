@@ -122,12 +122,12 @@ if hide_expired:
 # ── Overview table ──────────────────────────────────────────────────────────────
 st.subheader(f"Jobs ({len(view)})")
 
-TABLE_COLS = ["title", "institution", "city", "deadline", "type", "fit", "application_status"]
+TABLE_COLS = ["job_id", "title", "institution", "city", "deadline", "type", "fit", "application_status"]
 display = view[TABLE_COLS].copy()
 display["deadline"] = display["deadline"].dt.strftime("%Y-%m-%d")
 display[""] = display["application_status"].map(STATUS_COLOURS)
 display["🎯"] = display["fit"].map(FIT_COLOURS)
-display = display[["", "title", "institution", "city", "deadline", "type", "🎯", "application_status"]]
+display = display[["", "job_id", "title", "institution", "city", "deadline", "type", "🎯", "application_status"]]
 
 event = st.dataframe(
     display,
@@ -138,6 +138,7 @@ event = st.dataframe(
     key="job_table",
     column_config={
         "":                   st.column_config.TextColumn("", width="small"),
+        "job_id":             st.column_config.TextColumn("ID", width="small"),
         "title":              st.column_config.TextColumn("Title", width="large"),
         "institution":        st.column_config.TextColumn("Institution"),
         "city":               st.column_config.TextColumn("City", width="small"),
@@ -152,7 +153,7 @@ event = st.dataframe(
 # Only apply when the table selection actually changes — otherwise a stale
 # selection would overwrite selected_idx after Prev/Next navigation.
 sel_rows = event.selection.rows
-current_table_idx = view.index[sel_rows[0]] if sel_rows else None
+current_table_idx = view.index[sel_rows[0]] if sel_rows and sel_rows[0] < len(view) else None
 if current_table_idx != st.session_state.last_table_idx:
     st.session_state.last_table_idx = current_table_idx
     if current_table_idx is not None:

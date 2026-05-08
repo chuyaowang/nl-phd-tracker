@@ -141,16 +141,16 @@ def extract_contact(html: str) -> tuple[str, str]:
 def fetch_all(token: str) -> list[dict]:
     headers = {"Authorization": token, "Accept": "application/json"}
     results = []
-    params = dict(API_PARAMS)
+    url: str | None = API_BASE
+    params: dict | None = dict(API_PARAMS)
 
-    while True:
-        r = requests.get(API_BASE, headers=headers, params=params, timeout=15)
+    while url:
+        r = requests.get(url, headers=headers, params=params, timeout=15)
         r.raise_for_status()
         data = r.json()
         results.extend(data.get("results", []))
-        if not data.get("next"):
-            break
-        params["offset"] += params["limit"]
+        url = data.get("next")
+        params = None  # next URL already has all query params encoded
 
     return results
 

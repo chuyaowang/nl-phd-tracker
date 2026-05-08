@@ -3,6 +3,10 @@
 
 # Personal application data — contains your notes and private tracking
 data/jobs.csv
+applications/
+
+# Claude skills
+.claude/skills/
 
 # Trained ML models (binary, often large)
 models/*.pkl
