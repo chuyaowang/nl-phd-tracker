@@ -12,6 +12,7 @@ import argparse
 import csv
 import re
 import os
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -230,6 +231,9 @@ def fetch_and_merge(token: str, output_path: Path | None = None) -> dict:
                 added += 1
     else:
         added = len(new_rows)
+
+    if output_path.exists():
+        shutil.copy2(output_path, output_path.with_suffix(".bak"))
 
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=OUTPUT_FIELDS)
